@@ -1,0 +1,558 @@
+---
+title: "Data Cleaning"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidycensus)
+library(tigris)
+library(tidyverse)
+#library(xml2)
+library(rvest)
+library(readxl)
+library(xlsx)
+library(tm)
+library(tmap)
+library(sf)
+options(scipen=999)
+
+```
+
+# What we need
+
+```{r}
+# Variables we need from ACS 
+# population density -------------------------------------------- YES X 
+# Racial/ethnic composition,  ----------------------------------- YES X
+# % in labor force, % unemployed -------------------------------- YES X
+# % poverty ----------------------------------------------------- YES X
+# % on public assistance -------------------------- YES needs details.
+# % with non-public insurance, % with public insurance ---------- YES 
+# rent to income % ---------------------------------------------- YES
+# GINI INDEX OF INCOME INEQUALITY ------------------------------- YES
+# income inequality (Theil index) ------------------ NEEDS CALCULATION
+# racial segregation,  ------------------------------NEED CALCULATION
+# access to internet and     ------------------------------------- YES  
+# access to car/transportation.   -------------------------------- YES  
+```
+
+```{r eval=FALSE}
+# Shape files -- we are not using shapefiles in this project
+# county-sub data info 
+# https://www2.census.gov/geo/pdfs/reference/GARM/Ch8GARM.pdf
+# https://tigerweb.geo.census.gov/tigerwebmain/TIGERweb_state_based_files.html
+# https://tigerweb.geo.census.gov/tigerwebmain/Files/bas24/tigerweb_bas24_cousub_2020_tab20_ny.html
+
+# county-sub and zip code crosswalk 
+# https://www.huduser.gov/apps/public/uspscrosswalk/login?previous=https://www.huduser.gov/apps/public/uspscrosswalk/home
+
+```
+
+```{r getting-acs-data}
+#   demog <- get_acs(geography = "state",
+#                       output="tidy",
+#                       year=2019,
+#                       geometry = TRUE,
+#                       variables= c(
+#                         totalpop="B01001_001",
+#                         allmale="B01001_002",
+#                         allfemale="B01001_026",
+#                         
+#                         male18to34_ = c("B01001A_007", "B01001A_008",
+#                                         "B01001A_009", "B01001A_010"),
+#                         female18to34_ = c("B01001A_022", "B01001A_023",
+#                                           "B01001A_024", "B01001A_025"),
+# 
+#                         male0to14_=c("B01001_003", "B01001_004", "B01001_005"),
+#                         male15to19_=c("B01001_006", "B01001_007"),
+#                         male20to24_=c("B01001_008", "B01001_009", "B01001_010"),
+#                         male25to29= "B01001_011",
+#                         male30to34= "B01001_012",
+#                         male35to39= "B01001_013",
+#                         male40to44= "B01001_014",
+#                         male45to49= "B01001_015",
+#                         male50to54= "B01001_016",
+#                         male55to59= "B01001_017",
+#                         male60to64_= c("B01001_018","B01001_019"),
+#                         male65plus_= c("B01001_020","B01001_021",
+#                                        "B01001_022","B01001_023",
+#                                        "B01001_024","B01001_025"),
+# 
+#                         female0to14_=c("B01001_027", "B01001_028", "B01001_029"),
+#                         female15to19_=c("B01001_030", "B01001_031"),
+#                         female20to24_=c("B01001_032", "B01001_033", "B01001_034"),
+#                         female25to29= "B01001_035",
+#                         female30to34= "B01001_036",
+#                         female35to39= "B01001_037",
+#                         female40to44= "B01001_038",
+#                         female45to49= "B01001_039",
+#                         female50to54= "B01001_040",
+#                         female55to59= "B01001_041",
+#                         female60to64_= c("B01001_042","B01001_043"),
+#                         female65plus_= c("B01001_044","B01001_045","B01001_046",
+#                                          "B01001_047","B01001_048", "B01001_049"),
+# 
+# 
+# ######### foreign/not us citizen - was used in EHE
+#                         foreignborn="B05002_013",
+# #                         #notuscitizen="B05001_006",
+# ######## TRANSPORTATION
+#                         # WORKERS BY MEANS OF TRANSPORTATION TO WORK
+#                         publictransportwork="B08006_008", #excluding taxi
+#                         # Worker with No vehicle available
+#                         novehicle="B08014_002",
+#                         # there are other variables: bicycle, walk, taxi to work
+#                         # access to car/transportation is the variable in the
+#                         # abstract - should it include bicycle and taxi?
+# ######## MARITAL STATUS
+#                         nevermarried="B06008_002",
+#                         married="B06008_003",
+#                         divorced="B06008_004",
+#                         separated="B06008_005",
+#                         widowed="B06008_006",
+#                         # cohabitingcouplesamesex="B11009_009",
+#                         # cohabitingcoupleoppsex="B11009_008",
+# ############# EDUCATION
+#                         lessthanHS="B06009_002",
+#                         hs="B06009_003",
+#                         somecollege="B06009_004",
+#                         bachelor="B06009_005",
+#                         graddegree="B06009_006",
+# 
+# ###### RACE & ETHNICITY
+#                         nothispanic="B03002_002",
+#                         nhw="B03002_003",
+#                         nhb="B03002_004",
+#                         nhnative="B03002_005",
+#                         nhasian="B03002_006",
+#                         nhHIPI ="B03002_007",
+#                         nh1race_other = "B03002_008", #new
+#                         nh2more_other = "B03002_009", #new
+#                         nh2race_other_in_other = "B03002_010", #new
+#                         nh2race_other_ex_other = "B03002_011", #new
+# 
+#                         hispanic ="B03002_012",
+#                         hw = "B03002_013",
+#                         hb = "B03002_014",
+#                         hnative = "B03002_015", #new
+#                         hasian = "B03002_016", #new
+#                         hHIPI = "B03002_017", #new
+#                         h1race_other = "B03002_018", #new
+#                         h2race_other = "B03002_019", #new
+#                         h2race_other_in_other = "B03002_020", #new
+#                         h2race_other_ex_other = "B03002_021", #new
+# 
+# 
+# ################ INCOME
+#                         # noincome="B06010_002", #new
+#                         # someincome="B06010_003", #new
+#                         income1to9999="B06010_004",
+#                         income10kto14999= "B06010_005",
+#                         income15kto24999= "B06010_006",
+#                         income25kto34999= "B06010_007",
+#                         income35kto49999= "B06010_008",
+#                         income50kto64999= "B06010_009",
+#                         income65kto74999= "B06010_010",
+#                         income75kplus= "B06010_011",
+# 
+# ############### POVERTY
+#                         povertybelow100="B06012_002",
+#                         poverty100to149="B06012_003",
+#                         povertyabove150="B06012_004",
+# 
+# ############ EMPLOYMENT
+#                         employed="B23025_002",
+#                         unemployed="B23025_007",
+# ############ HOUSING (not homeless)
+#                         owneroccupiedhousing="B25003_002",
+#                         renteroccupiedhousing="B25003_003",
+# 
+# 
+# ##### PUBLIC ASSISTANCE
+#                          publicassistance="B19057_002",
+# 
+# ### ACCESS TO INTERNET
+#                         hasinternet="B28002_002", # With an Internet subscription
+#                         hasinternet_ns = "B28002_012", # new - access w/no subscription
+#                         nointernet="B28002_013",
+# 
+# ##### MEDICAL INSURANCE
+#                         noinsurance_= c("B27001_005", "B27001_008", "B27001_011",
+#                                         "B27001_014", "B27001_017", "B27001_020",
+#                                         "B27001_023", "B27001_026", "B27001_029",
+#                                         "B27001_033", "B27001_036", "B27001_039",
+#                                         "B27001_042", "B27001_045", "B27001_048",
+#                                         "B27001_051", "B27001_054", "B27001_057"),
+#                         hasprivateinsurance_= c("B27002_004", "B27002_007",
+#                                                 "B27002_010","B27002_013",
+#                                                 "B27002_016", "B27002_019",
+#                                                 "B27002_022", "B27002_025",
+#                                                 "B27002_028", "B27002_032",
+#                                                 "B27002_035", "B27002_038",
+#                                                 "B27002_041", "B27002_044",
+#                                                 "B27002_047", "B27002_050",
+#                                                 "B27002_053", "B27002_056"),
+# 
+#                         haspublicinsurance_= c("B27003_004", "B27003_007",
+#                                                "B27003_010", "B27003_013",
+#                                                 "B27003_016", "B27003_019",
+#                                                "B27003_022", "B27003_025",
+#                                                 "B27003_028","B27003_032",
+#                                                "B27003_035", "B27003_038",
+#                                                "B27003_041", "B27003_044",
+#                                                "B27003_047", "B27003_050",
+#                                                "B27003_053", "B27003_056"),
+# ###### RENT TO INCOME %
+#                         rent_income_10 = "B25070_002",
+#                         rent_income_149 = "B25070_003",
+#                         rent_income_199 = "B25070_004",
+#                         rent_income_249 = "B25070_005",
+#                         rent_income_299 = "B25070_006",
+#                         rent_income_349 = "B25070_007",
+#                         rent_income_399 = "B25070_008",
+#                         rent_income_499 = "B25070_009",
+#                         rent_income_50 = "B25070_010",
+#                         rent_income_nc = "B25070_005",
+# 
+# ### GINI INDEX OF INCOME INEQUALITY
+#                         incom_ineq_gini = "B19083_001"
+#                         )
+#                      )
+```
+
+```{r cleaning-acs-data}
+
+# cleaned_demog1 <- demog |>
+#     #filter(variable != "incom_ineq_gini") |>
+#     mutate(variable=
+#              case_when(
+#                variable == "male18to34_1" ~ "male18to34",
+#                variable == "male18to34_2" ~ "male18to34",
+#                variable == "male18to34_3" ~ "male18to34",
+#                variable == "male18to34_4" ~ "male18to34",
+#                variable == "female18to34_1" ~ "female18to34",
+#                variable == "female18to34_2" ~ "female18to34",
+#                variable == "female18to34_3" ~ "female18to34",
+#                variable == "female18to34_4" ~ "female18to34",
+#                
+#                variable== "male0to14_1" ~"male0to14",
+#                variable=="male0to14_2" ~"male0to14",
+#                variable=="male0to14_3" ~"male0to14",
+#                variable=="male15to19_1" ~"male15to19",
+#                variable=="male15to19_2" ~"male15to19",
+#                variable=="male20to24_1" ~"male20to24",
+#                variable=="male20to24_2" ~"male20to24",
+#                variable=="male20to24_3" ~"male20to24",
+#                variable=="male60to64_1" ~"male60to64",
+#                variable=="male60to64_2" ~"male60to64",
+#                variable=="male65plus_1" ~"male65plus",
+#                variable=="male65plus_2" ~"male65plus",
+#                variable=="male65plus_3" ~"male65plus",
+#                variable=="male65plus_4" ~"male65plus",
+#                variable=="male65plus_5" ~"male65plus",
+#                variable=="male65plus_6" ~"male65plus",
+#                variable=="female0to14_1"~"female0to14",
+#                variable=="female0to14_2"~"female0to14",
+#                variable=="female0to14_3"~"female0to14",
+#                variable=="female15to19_1"~"female15to19",
+#                variable=="female15to19_2"~"female15to19",
+#                variable=="female20to24_1"~"female20to24",
+#                variable=="female20to24_2"~"female20to24",
+#                variable=="female20to24_3"~"female20to24",
+#                variable=="female60to64_1"~"female60to64",
+#                variable=="female60to64_2"~"female60to64",
+#                variable=="female65plus_1"~"female65plus",
+#                variable=="female65plus_2"~"female65plus",
+#                variable=="female65plus_3"~"female65plus",
+#                variable=="female65plus_4"~"female65plus",
+#                variable=="female65plus_5"~"female65plus",
+#                variable=="female65plus_6"~"female65plus",
+#                variable=="hasprivateinsurance_1"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_2"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_3"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_4"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_5"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_6"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_7"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_8"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_9"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_10"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_11"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_12"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_13"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_14"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_15"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_16"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_17"~"hasprivateinsurance",
+#                variable=="hasprivateinsurance_18"~"hasprivateinsurance",
+#                variable=="haspublicinsurance_1"~"haspublicinsurance",
+#                variable=="haspublicinsurance_2"~"haspublicinsurance",
+#                variable=="haspublicinsurance_3"~"haspublicinsurance",
+#                variable=="haspublicinsurance_4"~"haspublicinsurance",
+#                variable=="haspublicinsurance_5"~"haspublicinsurance",
+#                variable=="haspublicinsurance_6"~"haspublicinsurance",
+#                variable=="haspublicinsurance_7"~"haspublicinsurance",
+#                variable=="haspublicinsurance_8"~"haspublicinsurance",
+#                variable=="haspublicinsurance_9"~"haspublicinsurance",
+#                variable=="haspublicinsurance_10"~"haspublicinsurance",
+#                variable=="haspublicinsurance_11"~"haspublicinsurance",
+#                variable=="haspublicinsurance_12"~"haspublicinsurance",
+#                variable=="haspublicinsurance_13"~"haspublicinsurance",
+#                variable=="haspublicinsurance_14"~"haspublicinsurance",
+#                variable=="haspublicinsurance_15"~"haspublicinsurance",
+#                variable=="haspublicinsurance_16"~"haspublicinsurance",
+#                variable=="haspublicinsurance_17"~"haspublicinsurance",
+#                variable=="haspublicinsurance_18"~"haspublicinsurance",
+#                variable=="noinsurance_1"~"noinsurance",
+#                variable=="noinsurance_2"~"noinsurance",
+#                variable=="noinsurance_3"~"noinsurance",
+#                variable=="noinsurance_4"~"noinsurance",
+#                variable=="noinsurance_5"~"noinsurance",
+#                variable=="noinsurance_6"~"noinsurance",
+#                variable=="noinsurance_7"~"noinsurance",
+#                variable=="noinsurance_8"~"noinsurance",
+#                variable=="noinsurance_9"~"noinsurance",
+#                variable=="noinsurance_10"~"noinsurance",
+#                variable=="noinsurance_11"~"noinsurance",
+#                variable=="noinsurance_12"~"noinsurance",
+#                variable=="noinsurance_13"~"noinsurance",
+#                variable=="noinsurance_14"~"noinsurance",
+#                variable=="noinsurance_15"~"noinsurance",
+#                variable=="noinsurance_16"~"noinsurance",
+#                variable=="noinsurance_17"~"noinsurance",
+#                variable=="noinsurance_18"~"noinsurance",
+#                variable=="hasdisability1"~"hasdisability",
+#                variable=="hasdisability2"~"hasdisability",
+#                variable=="hasdisability3"~"hasdisability",
+#                variable=="hasdisability4"~"hasdisability",
+#                variable=="hasdisability5"~"hasdisability",
+#                variable=="hasdisability6"~"hasdisability",
+#                variable=="hasdisability7"~"hasdisability",
+#                variable=="hasdisability8"~"hasdisability",
+#                variable=="hasdisability9"~"hasdisability",
+#                variable=="hasdisability10"~"hasdisability",
+#                variable=="hasdisability11"~"hasdisability",
+#                variable=="hasdisability12"~"hasdisability",
+#                TRUE~ variable)) |> 
+#   #mutate(NAME = str_extract(NAME, "^.*(?=( County))")) |> 
+#   write_rds("data_clean/acs_cleaned_demog_20240818.rds") |>
+#   write_csv("data_clean/acs_cleaned_demog_20240818.csv")
+```
+
+# Creating a crosswalk between counties and zctas
+
+```{r}
+cleaned_demog <- readRDS("data_clean/acs_cleaned_demog_20240818.rds")
+
+# Variables of interest: Total, White, Black, Asian, Hispanic
+race_vars = c("B03002_001", "B03002_003", "B03002_004", "B03002_006", "B03002_012")
+
+sf_states = get_acs(
+  geography = "state", variables = race_vars, year = 2019,
+  output = "wide", geometry = TRUE
+  ) |>
+  select(state = GEOID, name = NAME, totalpop_state = B03002_001E, nhw = B03002_003E,
+       nhb = B03002_004E, nhasian = B03002_006E, hispanic = B03002_012E)
+
+```
+
+# Calculating racial sagregation
+
+```{r}
+#### LARGE AREA 
+# sf_states <- cleaned_demog |> 
+#   select(-moe) |> 
+#   filter(variable == "totalpop"|
+#     variable =="nhw" |
+#            variable == "nhb" |
+#            variable == "nhasian" |
+#            variable == "hispanic") |> 
+#   pivot_wider(names_from = "variable",
+#               values_from = "estimate")
+
+#### SMALL AREA 
+df_tracts1 = get_acs(
+  geography = "tract", variables = race_vars, year = 2019, 
+  output = "wide", state = sf_states$state
+)
+df_tracts = transmute(
+  df_tracts1, state = substr(GEOID, 1, 2), tract = GEOID, name = NAME, 
+  totalpop_tract = B03002_001E, nhw = B03002_003E, nhb = B03002_004E, 
+  nhasian = B03002_006E, hispanic = B03002_012E
+) |> 
+  select(-name) 
+
+### JOINED ZCTAS AND counties
+df_joined_data <-  
+  inner_join(df_tracts, sf_states, by = join_by("state"), suffix = c("_tract", "_state"))
+```
+
+# Segregation: Calculate the index of dissilimarity (d)
+
+```{r function-dissimilarity}
+
+# variables of the large area need to be named "community"
+get_df_dissimilarity <- function(df_joined, sf_comm, 
+                                 majority_tract, majority_state,
+                                 minority_tract, minority_state){
+
+
+df_community_d1 <- df_joined |> 
+    transmute(name,
+              # tract- county
+              x = abs({{majority_tract}}/ {{majority_state}} - 
+                        {{minority_tract}} / {{minority_state}})) |> 
+  # 1/2*of the sum of x for each state
+    group_by(name) %>%
+  # so here we sum x
+    summarise(x = sum(x, na.rm = TRUE)) %>%
+  # and here we get the half of that sum per state
+    transmute(name, d = x / 2) 
+
+# Join D back to state features
+df_community_d = 
+  # df_comm %>%
+  # as.data.frame() %>%
+  inner_join(sf_comm, df_community_d1, by = join_by("name")) 
+  #st_sf()
+  
+return(df_community_d)
+}
+
+```
+
+## county-level
+
+```{r create-dissimilarity-county}
+#Calculate the index of dissilimarity (D) White vs Black 
+dissimilarity_wb <- get_df_dissimilarity(df_joined_data, sf_states, 
+                                         nhw_tract, nhw_state,
+                                         nhb_tract, nhb_state) |> 
+  rename(d_wb = d) |> 
+  data_frame()
+
+# Calculate the index of dissilimarity (D) White vs Hispanic
+dissimilarity_wh <- get_df_dissimilarity(df_joined_data, sf_states, 
+                                         nhw_tract, nhw_state,
+                                         hispanic_tract, hispanic_state) |> 
+  rename(d_wh = d) |> 
+  data_frame()
+
+# Calculate the index of dissilimarity (D) Black vs Hispanic
+dissimilarity_bh <- get_df_dissimilarity(df_joined_data, sf_states, 
+                                         nhb_tract, nhb_state, 
+                                         hispanic_tract, hispanic_state) |> 
+  rename(d_bh = d) |> 
+  data_frame()
+
+# Joining 
+dissimilarity_wb |> 
+  left_join(dissimilarity_wh |> 
+              select(name, d_wh), by = join_by(name)) |> 
+  left_join(dissimilarity_bh |> 
+               select(name, d_bh), by = join_by(name))
+  # write_csv("data_clean/segregation_dissimilarity_20240818.csv") |>
+  # write_rds("data_clean/segregation_dissimilarity_20240818.rds")
+```
+
+# Segregation: Calculate the isolation index (i) for black and hispanic
+
+```{r isolation-function}
+
+get_df_isolation <- function(df_joined, sf_comm, 
+                             minority_small_area, minority_large_area){
+  
+df_name_i1 <- df_joined |> 
+    transmute(name,
+              x = {{minority_small_area}}/{{minority_large_area}},
+              y = {{minority_small_area}}/totalpop_tract)|> 
+  transmute(name, 
+            i = x*y) |> 
+  # 1/2*of the sum of x for each state
+    group_by(name) %>%
+  # so here we sum x
+    summarise(i = sum(i, na.rm = TRUE))
+
+# Join D back to state features
+sf_name_i = sf_comm %>%
+  as.data.frame() %>%
+  inner_join(df_name_i1, by = join_by("name"))
+  #st_sf()
+  
+return(sf_name_i)
+}
+
+```
+
+```{r}
+isolation_b <- get_df_isolation(df_joined_data, sf_states, nhb_tract, nhb_state) |>
+  rename(i_b = i)
+isolation_h <- get_df_isolation(df_joined_data, sf_states, hispanic_tract, hispanic_state) |>
+  rename(i_h =i)
+
+isolation_b |>
+  left_join(isolation_h, by = join_by(state, name, totalpop_state, nhw, nhb, 
+                                      nhasian, hispanic, geometry)) 
+  # write_csv("data_clean/segregation_isolation_20240818.csv") |>
+  # write_rds("data_clean/segregation_isolation_20240818.rds")
+```
+
+# Segregation: Calculate the interaction(exposure) index (e)
+
+```{r interaction-function}
+get_df_exposure <- function(df_joined, sf_comm, 
+                            minority_small_area, minority_large_area){
+  
+df_name_e1 <- df_joined |> 
+    transmute(name,
+              x = {{minority_small_area}}/{{minority_large_area}}, #minority
+              y = nhw_tract/totalpop_tract)|>  #majority pop 
+  transmute(name, 
+            e = x*y) |> 
+  # 1/2*of the sum of x for each state
+    group_by(name) %>%
+  # so here we sum x
+    summarise(e = sum(e, na.rm = TRUE))
+
+# Join D back to state features
+sf_name_e = sf_comm %>%
+  as.data.frame() %>%
+  inner_join(df_name_e1, by = join_by("name"))
+  #st_sf()
+  
+return(sf_name_e)
+}
+
+
+```
+
+```{r}
+exposure_h <- get_df_exposure(df_joined_data, sf_states, hispanic_tract, hispanic_state) |> 
+  rename(e_h = e)
+exposure_b <- get_df_exposure(df_joined_data, sf_states, nhb_tract, nhb_state) |> 
+  rename(e_b = e)
+
+exposure_h |> 
+  left_join(exposure_b, by = join_by(state, name, totalpop_state, nhw, nhb, 
+                                     nhasian, hispanic, geometry))
+  # write_csv("data_clean/segregation_exposure_20240818.csv") |>
+  # write_rds("data_clean/segregation_exposure_20240818.rds")
+```
+
+```{r}
+# References 
+# segregation 
+# https://www2.census.gov/ces/wp/2022/CES-WP-22-14.pdf 
+
+# dissimilarity formula 
+# https://github.com/temple-geography/census-gis/blob/master/Calculating%20the%20Index%20of%20Dissimilarity.pdf
+# exposure formula 
+# in docs 
+
+# exposure (interaction) and isolation formula 
+# https://www.census.gov/topics/housing/housing-patterns/guidance/appendix-b.html
+
+
+
+```
