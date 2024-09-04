@@ -2,6 +2,64 @@
 title: "Data Cleaning"
 format: html
 editor: visual
+params: 
+  NAME_place:
+    label: "Place:"
+    value: Florida
+    input: select
+    choices: 
+    - Florida            
+    - Montana            
+    - Minnesota          
+    - Maryland           
+    - South Carolina      
+    - Maine               
+    - Hawaii              
+    - District of Columbia
+    - Rhode Island        
+    - Nebraska           
+    - Washington         
+    - New Mexico         
+    - Puerto Rico        
+    - South Dakota        
+    - Texas              
+    - California         
+    - Alabama             
+    - Georgia            
+    - Arkansas            
+    - Pennsylvania        
+    - Missouri            
+    - Utah               
+    - Oklahoma           
+    - Tennessee          
+    - Wyoming            
+    - Indiana            
+    - Kansas              
+    - Idaho               
+    - Alaska             
+    - Nevada              
+    - Illinois            
+    - Vermont            
+    - Connecticut       
+    - New Jersey          
+    - North Dakota      
+    - Iowa                
+    - New Hampshire     
+    - Arizona             
+    - Delaware            
+    - Kentucky            
+    - Ohio           
+    - Wisconsin          
+    - Oregon              
+    - Mississippi         
+    - Colorado            
+    - North Carolina      
+    - Virginia           
+    - West Virginia      
+    - Louisiana           
+    - New York           
+    - Michigan          
+    - Massachusetts  
 ---
 
 ```{r}
@@ -539,6 +597,8 @@ exposure_h |>
   # write_csv("data_clean/segregation_exposure_20240818.csv") |>
   # write_rds("data_clean/segregation_exposure_20240818.rds")
 ```
+
+
 
 ```{r}
 # References 

@@ -1,6 +1,5 @@
 ---
-title: "county"
-subtitle: "`r params$NAME_place`"
+title: "`r params$NAME_place`"
 title-block-banner: true
 toc: true
 toc-location: right
@@ -20,25 +19,61 @@ fig-align: center
 params: 
   NAME_place:
     label: "Place:"
-    value: Campbell
+    value: Florida
     input: select
     choices: 
-    - Bourbon
-    - Boyd
-    - Boyle 
-    - Campbell
-    - Carter    
-    - Clark   
-    - Fayette   
-    - Floyd    
-    - Franklin  
-    - Greenup 
-    - Jefferson
-    - Jessamine
-    - Kenton   
-    - Knox    
-    - Madison  
-    - Mason" 
+    - Florida            
+    - Montana            
+    - Minnesota          
+    - Maryland           
+    - South Carolina      
+    - Maine               
+    - Hawaii              
+    - District of Columbia
+    - Rhode Island        
+    - Nebraska           
+    - Washington         
+    - New Mexico         
+    - Puerto Rico        
+    - South Dakota        
+    - Texas              
+    - California         
+    - Alabama             
+    - Georgia            
+    - Arkansas            
+    - Pennsylvania        
+    - Missouri            
+    - Utah               
+    - Oklahoma           
+    - Tennessee          
+    - Wyoming            
+    - Indiana            
+    - Kansas              
+    - Idaho               
+    - Alaska             
+    - Nevada              
+    - Illinois            
+    - Vermont            
+    - Connecticut       
+    - New Jersey          
+    - North Dakota      
+    - Iowa                
+    - New Hampshire     
+    - Arizona             
+    - Delaware            
+    - Kentucky            
+    - Ohio           
+    - Wisconsin          
+    - Oregon              
+    - Mississippi         
+    - Colorado            
+    - North Carolina      
+    - Virginia           
+    - West Virginia      
+    - Louisiana           
+    - New York           
+    - Michigan          
+    - Massachusetts  
 ---
 
 
@@ -46,33 +81,22 @@ params:
 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(warning = FALSE, message = FALSE, include = FALSE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, include = FALSE, echo = FALSE)
 ```
 
 ```{r}
 library(tidyverse)
-# library(xml2)
-# library(rvest)
-# library(readxl)
-# library(kableExtra) 
 library(reactable)
 library(tigris)
 library(leaflet)
-# library(readr)
-# library(table1)
 library(sf)
-# library(tidycensus)
-# library(tmap)
-# library(mapview)
+library(tidycensus)
 library(leaflet.extras)
 library(tm)
-# options(scipen=999)
-# 
-# library(ggthemes)
-# library(patchwork)
-
-
-
+options(scipen=999)
+library(apyramid)
+library(ggthemes)
+library(patchwork)
 
 ```
 
@@ -81,115 +105,123 @@ library(tm)
 ```{r include= FALSE, echo=FALSE}
 
 sf_state_d <- read_rds("data_clean/segregation_dissimilarity_20240818.rds") |> 
+  # filter(name != "Puerto Rico") |> 
+  # filter(name != "Alaska") |> 
+  # filter(name != "Hawaii") |> 
   select(state = name, geometry, d_wb, d_wh) 
 
 
 sf_state_i <- readRDS("data_clean/segregation_isolation_20240818.rds") |> 
+  # filter(name != "Puerto Rico") |> 
+  # filter(name != "Alaska") |> 
+  # filter(name != "Hawaii") |> 
   select(state = name, geometry, i_b, i_h)
 
 sf_state_segregation <- readRDS("data_clean/segregation_exposure_20240818.rds") |> 
   select(state = name, geometry, e_h, e_b) |> 
   inner_join(sf_state_d, by = join_by(state, geometry)) |> 
   inner_join(sf_state_i, by = join_by(state, geometry)) |> 
-  # filter(state != "Puerto Rico") |> 
-  # filter(state != "Alaska") |> 
   st_sf()
 
 
 cleaned_demog <- readRDS("data_clean/acs_cleaned_demog_20240818.rds") |> 
   data.frame() |> 
-  select(-geometry) |> 
-  filter(state != "Puerto Rico") |> 
-  filter(state != "Alaska") |> 
-  rename(state = NAME) 
-
-
-
+  select(-geometry)
+  # filter(NAME != "Puerto Rico") |> 
+  # filter(NAME != "Alaska") |> 
+  # filter(NAME != "Hawaii") 
 ```
 
 ::: {.column width="100%"}
 ```{r include= TRUE, echo=FALSE}
 
-####
 # https://stackoverflow.com/questions/62817005/r-leaflet-assign-multiple-groups-to-a-layer-to-filter-data-and-change-column-re
 # https://rstudio.github.io/leaflet/articles/showhide.html
-pal1 <- colorNumeric(palette = "Blues", domain = sf_state_segregation$d_wb)
-pal2 <- colorNumeric(palette = "Purple", domain = sf_state_segregation$i_b)
-pal3 <- colorNumeric(palette = "Reds", domain = sf_state_segregation$e_b)
-#pal1 <- colorBin("Purples", domain = sf_county_segregation$d_wb, bins = 5, na.color = "#808080")
+pal1 <- colorBin(palette = "Purples", 
+                 domain = sf_state_segregation$d_wb, bins = 5, na.color = "#808080")
+pal2 <-colorBin(palette = "Blues", 
+                domain = sf_state_segregation$i_b, bins = 5, na.color = "#808080")
+pal3 <- colorBin(palette = "Reds", 
+                 domain = sf_state_segregation$e_b, bins = 5, na.color = "#808080")
+
+#bins = seq(round(min, 2), round(max, 2), sep)
 
 sf_state_segregation |> 
   leaflet() %>% 
-  clearBounds() |>
   addProviderTiles("CartoDB.Positron") |> 
   addResetMapButton() %>% 
+  #fitBounds(bbox[1], bbox[2], bbox[3], bbox[4]) |> 
+  setView(-93.28260584606623,
+          39.29656858589331, zoom = 4) |> 
   addPolygons(
     group="Dissiminarity Index",
     color = ~pal1(d_wb),
     weight = 1,  # border thickness
     opacity = 1, # border opacity
     fillOpacity = 0.8,
-    highlightOptions = highlightOptions(fillColor ="blue",
+    highlightOptions = highlightOptions(fillColor ="white",
                                         bringToFront = TRUE),
-    label=~paste0(state, ": ", round(d_wb, 2)),
+    label=~paste0(state, ": ", round(d_wb, 3)),
     labelOptions = labelOptions(style = list("font-size" = "12px"))
     ) |>
   addPolygons(
     group="Isolation Index", 
-    color = ~pal1(i_b),
+    color = ~pal2(i_b),
     weight = 1,  # border thickness
     opacity = 1, # border opacity
     fillOpacity = 0.8,
-    highlightOptions = highlightOptions(fillColor ="purple",
+    highlightOptions = highlightOptions(fillColor ="white",
                                         bringToFront = TRUE),
     label=~paste0(state, ": ", round(i_b, 2)),
     labelOptions = labelOptions(style = list("font-size" = "12px"))) |> 
+  
   addPolygons(
     group="Exposure Index", 
-    color = ~pal1(e_b),
+    color = ~pal3(e_b),
     weight = 1,  # border thickness
     opacity = 1, # border opacity
     fillOpacity = 0.8,
-    highlightOptions = highlightOptions(fillColor ="red",
+    highlightOptions = highlightOptions(fillColor ="white",
                                         bringToFront = TRUE),
     label=~paste0(state, ": ", round(e_b, 2)),
     labelOptions = labelOptions(style = list("font-size" = "12px"))) |> 
-  addPolygons(
-    data = states,
-    weight = 3,
-    color = "gray",
-    opacity = 0.1,
-    fill = FALSE,
-    highlightOptions = highlightOptions(bringToFront = TRUE)) |> 
-  addLegend("bottomright", pal = pal1, values = ~sf_state_segregation$d_wb,
+  
+  addLegend("topright", pal = pal1, values = ~sf_state_segregation$d_wb,
     title = "Dissiminarity Index",
-    opacity = 1, group="Dissiminarity Index") |> 
-  addLegend("bottomright", pal = pal2, values = ~sf_state_segregation$i_b,
+    opacity = 1, group="Dissiminarity Index", bins = 5) |>
+  
+  addLegend("topright", pal = pal2, values = ~sf_state_segregation$i_b,
     title = "Isolation Index",
-    opacity = 1, group="Isolation Index") |> 
-  addLegend("bottomright", pal = pal3, values = ~sf_state_segregation$e_b,
+    opacity = 1, group="Isolation Index", bins = 5) |> 
+  
+  addLegend("topright", pal = pal3, values = ~sf_state_segregation$e_b,
     title = "Exposure Index",
-    opacity = 1, group="Exposure Index") |>
-  addLayersControl(baseGroups = c("Dissiminarity Index", "Isolation Index", "Exposure Index"),
-                   position="topright",
-                   options = layersControlOptions(collapsed = F)) 
-
+    opacity = 1, group="Exposure Index", bins = 5) |>
+  
+  addLayersControl(baseGroups = c(
+                                  "Dissiminarity Index", 
+                                  "Isolation Index", 
+                                  "Exposure Index"),
+                   position="bottomleft",
+                   options = layersControlOptions(collapsed = F)) +
+  addTitle(object, text, color = "black", fontSize = "20px",
+ fontFamily = "Sans", leftPosition = 50, topPosition = 2)
+  
 
 ```
 :::
 
 
 ```{r}
-cleaned_demog <- readRDS("data_clean/ky_acs_cleaned_demog_20240717.rds")
-
-cleaned_demog <- data_frame(county = cleaned_demog$county,
-                                variable = cleaned_demog$variable,
-                                estimate = cleaned_demog$estimate)
+cleaned_demog <- readRDS("data_clean/acs_cleaned_demog_20240818.rds") 
 
 md_details <- cleaned_demog %>% 
-  filter(county == params$NAME_place)
+    data_frame() |> 
+  filter(NAME == params$NAME_place) |> 
+  rename(state = NAME)
 
-md_details2 <- cleaned_demog 
+md_details2 <- cleaned_demog |> 
+  rename(state = NAME)
 ```
 
 
@@ -330,15 +362,15 @@ md_spanishpoorenglish_percent <- md_details %>% filter(variable=="spanishpooreng
 
 total_pop <- md_details |> 
   filter(variable == "allfemale" | variable=="allmale") |> 
-  group_by(county) |> 
+  group_by(state) |> 
   summarise(total_pop = sum(estimate))
 
 md_details_wide <- md_details |> 
   pivot_wider(names_from = variable,
               values_from = estimate)
 
-no_insurance <- md_details_wide %>% 
-  select(county, noinsurance, totalpop) |> 
+no_insurance <- md_details_wide %>%
+  select(state, noinsurance, totalpop) |>
   mutate(per = paste0((round((noinsurance/totalpop)*100, 1)), "%"))
   
   
@@ -405,112 +437,54 @@ apyramid::age_pyramid(data = age,
 ```
 
 ```{r include=FALSE}
-race_eth_state <- get_acs(geography = "state",
-                      state="KY",
-                      output="tidy",
-                      year=2019,
-                      geometry = FALSE,
-                      variables= c(
-###### RACE & ETHNICITY
-                        hispanic ="B03002_012",
-                        nhb="B03002_004",
-                        nhw="B03002_003",
-                        nhasian="B03002_006",
-                        nhHIPI ="B03002_007",
-                        nhnative="B03002_005"
-                      )
-) |> 
-  mutate(
-    county = rep("Kentucky State"),
-    variable = ifelse(variable == "nhasian" | 
-                             variable == "nhHIPI" | 
-                             variable == "nhnative", "other", variable)) |> 
-  group_by(county, variable) |> 
-  summarise(estimate = sum(estimate)) |> 
-  ungroup() |> 
-  mutate(variable = case_when(
-    variable == "hispanic" ~ "Hispanic", 
-    variable == "nhb" ~ "Non-Hispanic Black",
-    variable == "nhw" ~ "Non-Hispanic White",
-    variable == "other" ~ "Other"
-    ),
-    fraction = estimate /sum(estimate),
-    ymax = cumsum(fraction), 
-    ymin = c(0, head(ymax, n=-1)),
-    label_position = (ymax+ymin)/2,
-    #label = paste0(c("Hispanic", "Non-Hispanic Black", "Non-Hispanic White", "Other"), " ", estimate)
-    label = paste0(round((estimate /sum(estimate))*100,2), "%")
-  ) 
-
-
-
 race_eth <- md_details %>% 
   filter(variable=="hispanic"|
-           variable=="nhb" |
-           variable=="nhw" | 
-           variable=="nhasian" |
-           variable=="nhHIPI" |
-           variable=="nhnative") |> 
-    mutate(variable = case_when(
-    variable == "hispanic" ~ "Hispanic", 
-    variable == "nhb" ~ "Non-Hispanic Black",
-    variable == "nhw" ~ "Non-Hispanic White",
-    variable == "nhasian" | 
-      variable == "nhHIPI" | 
-      variable == "nhnative" ~ "Other"
-    )) |> 
-  group_by(county, variable) |> 
-  summarise(estimate = sum(estimate)) |> 
-  ungroup() |> 
-  mutate(
-    fraction = estimate /sum(estimate),
-    ymax = cumsum(fraction), 
-    ymin = c(0, head(ymax, n=-1)),
-    label_position = (ymax+ymin)/2,
-    #label = paste0(c("Hispanic", "Non-Hispanic Black", "Non-Hispanic White", "Other"), " ", estimate)
-    label = paste0(round((estimate /sum(estimate))*100,2), "%")
-  ) |> 
-  rbind(race_eth_state) |> 
-    rename(level = county) |> 
-  mutate(variable = factor(variable))
-  
-  
+         variable=="nhb" |
+         variable=="nhw")
 
+#summing other category
+race_eth_other <- md_details %>% 
+  filter(variable=="nhasian" |
+         variable=="nhHIPI" |
+         variable=="nhnative") %>% 
+  summarize(other=sum(estimate))
+ 
+#combining other with other race categories 
+race_eth <- race_eth %>% 
+  add_row(variable="other", estimate=race_eth_other$other)
 
+#renaming variables
+race_eth$variable <- gsub("hispanic", "Hispanic", race_eth$variable)
+race_eth$variable <- gsub("nhb", "Non-Hispanic Black", race_eth$variable)
+race_eth$variable <- gsub("nhw", "Non-Hispanic White", race_eth$variable)
+race_eth$variable <- gsub("other", "Other", race_eth$variable)
 ```
 
 ```{r include=TRUE, echo=FALSE, fig.height=5, fig.width=8.5}
 
-p <- ggplot(data=race_eth, aes(x=fraction, y=level, fill = variable, label = label)) +
-  geom_col(width = 0.5) +
-  #scale_x_discrete(labels=c("Less than HS", "HS", "Some College", "Bachelor", "Graduate"))+
-  labs(y="", x="") +
-  scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
-  theme_bw()+
-  theme(
-    legend.title = element_blank(),
-    legend.position = "bottom",
-    panel.border = element_blank(),
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.line = element_line(color = "black"),
-    axis.text.y=element_blank(),
-    axis.text.x=element_text(color = "black", face = "bold" ),
-    axis.ticks.x = element_blank(),
-    axis.ticks.y = element_blank(),
-    axis.line.y = element_blank(),
-    axis.line.x = element_blank(),
-    plot.title=element_text(hjust=0.5)
-  ) +
-    #scale_color_brewer(palette = "Set1" ) +
-    scale_fill_brewer(palette = "YlGnBu") +
-  # Swap between black and white text
+#compute percentages
+race_eth$fraction <- race_eth$estimate /sum(race_eth$estimate)
+#compute cumulative percentages
+race_eth$ymax <- cumsum(race_eth$fraction)
+#compute bottom
+race_eth$ymin = c(0, head(race_eth$ymax, n=-1))
+#compute label position
+race_eth$labelPosition <- (race_eth$ymax+race_eth$ymin)/2
+#compute label
+race_eth$label <- paste0(c("Hispanic", "Non-Hispanic Black", "Non-Hispanic White", "Other"), " ", race_eth$estimate)
 
-  geom_text(size = 2.5, fontface = "bold", position = position_fill(vjust = 0.7), 
-            color = "black")+
-    #scale_color_manual(values = c(rep("black", 2), rep("white", 2), "black")) +
-  coord_flip() +
-  ggtitle("Race and Ethinicity"  )
+#make plot
+dem <- ggplot(race_eth, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=variable))+
+  geom_rect()+
+  geom_label(x=3.5, aes(y=labelPosition, label=label), size=3)+
+  scale_fill_brewer(palette=4)+
+  scale_color_brewer(palette=8)+
+  coord_polar(theta="y")+
+  xlim(c(1,4))+
+  theme_void()+
+  theme(legend.position = "none")+
+  ggtitle("Demographics by Race & Ethnicity")+ 
+  theme(plot.title=element_text(hjust=0.5))
 
 
 ```
@@ -570,6 +544,27 @@ dem_state <- ggplot(education_state, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, f
   ggtitle("Kentucky: Education Attainment")
 ```
 
+```{r}
+p <- ggplot(data=education_state, aes(x=variable, y=percentage)) +
+  geom_bar(stat="identity", fill= "#F8766D", orientation="x")+
+  geom_text(aes(label=paste(education$percentage, "%", sep="")), vjust=-0.3, size=3.5) +
+  theme_minimal()
+```
+
+```{r}
+p <- p + scale_x_discrete(labels=c("Less than HS", "HS", "Some College", "Bachelor", "Graduate"))+
+  ggtitle("Distribution of Education Level")+
+  theme(plot.title=element_text(hjust=0.5))+
+  labs(y="Percentage", x="Education")
+
+```
+
+```{r}
+top_education<- education_state %>%
+  slice_max(estimate, n=2)
+```
+
+
 ```{r include=FALSE}
 
 
@@ -626,7 +621,7 @@ top_education<- education %>%
 
 ### [Race & Education]{.smallcaps}
 
-##### `r params$NAME_place` residents tend to exhibit the following racial/ethnic patterns. The predominate racial/ethnic groups are `r top_race$variable[1]` and `r top_race$variable[2]`, representative of `r top_race$percentage[1]` and `r top_race$percentage[2]` of the population, respectively. The highest percentage of residents tend to attain either a `r top_education$variable[1]` or `r top_education$variable[2]` for education. **Figure 1.2** illustrates the racial and ethnic counts of the county and **Figure 1.3** illustrates the distribution of education attained within `r params$NAME_place`.
+##### `r params$NAME_place` residents tend to exhibit the following racial/ethnic patterns. The predominate racial/ethnic groups are `r top_race$variable[1]` and `r top_race$variable[2]`, representative of `r top_race$percentage[1]` and `r top_race$percentage[2]` of the population, respectively. The highest percentage of residents tend to attain either a `r top_education$variable[1]` or `r top_education$variable[2]` for education. **Figure 1.2** illustrates the racial and ethnic counts of the state and **Figure 1.3** illustrates the distribution of education attained within `r params$NAME_place`.
 
 ##### 
 
@@ -777,7 +772,7 @@ md_nosalary_percent <- md_details %>% filter(variable=="nosalary"|
   filter(variable=="nosalary")
 ```
 
-##### In the Census Bureau's latest 5-year American county Survey (ACS), about `r scales::comma(md_unemployed$estimate)` or roughly `r md_unemployed_percent$unemployed_percent` of `r params$NAME_place`'s inhabitants reported being unemployed and `r scales::comma(md_nosalary$estimate)` or `r md_nosalary_percent$nosalary_percent` reported having no salary. Approximately `r scales::comma(md_poverty)` residents live below the federal poverty line with `r scales::comma(md_povertybelow100$estimate)` (`r md_povertybelow100_percent$povertybelow100_percent`) living below 100% and `r scales::comma(md_poverty100to149$estimate)` (`r md_poverty100to149_percent$poverty100to149_percent`) living between 100-149% of the poverty line. 
+##### In the Census Bureau's latest 5-year American state Survey (ACS), about `r scales::comma(md_unemployed$estimate)` or roughly `r md_unemployed_percent$unemployed_percent` of `r params$NAME_place`'s inhabitants reported being unemployed and `r scales::comma(md_nosalary$estimate)` or `r md_nosalary_percent$nosalary_percent` reported having no salary. Approximately `r scales::comma(md_poverty)` residents live below the federal poverty line with `r scales::comma(md_povertybelow100$estimate)` (`r md_povertybelow100_percent$povertybelow100_percent`) living below 100% and `r scales::comma(md_poverty100to149$estimate)` (`r md_poverty100to149_percent$poverty100to149_percent`) living between 100-149% of the poverty line. 
 
 ### [Housing]{.smallcaps}
 
@@ -830,127 +825,119 @@ p2
 
 
 ```{r include=FALSE}
-insurance <- md_details %>% 
-  filter(variable=="noinsurance"|
-         variable=="hasprivateinsurance" |
-         variable=="haspublicinsurance"|
-         variable=="totalpop") 
-
-insurance$variable <- gsub("noinsurance", "do not have insurance", insurance$variable)
-insurance$variable <- gsub("hasprivateinsurance", "have private insurance", insurance$variable)
-insurance$variable <- gsub("haspublicinsurance", "have public insurance", insurance$variable)
-
-top_insurance<- insurance %>%
-  slice_max(estimate, n=2) 
-
-top_insurance_percent <- top_insurance %>% 
-  mutate(top_insurance_percent=paste(round(estimate[2]/estimate[1]*100), "%", sep="")) %>% 
-  filter(estimate!=max(estimate))
+# insurance <- md_details %>% 
+#   filter(variable=="noinsurance"|
+#          variable=="hasprivateinsurance" |
+#          variable=="haspublicinsurance"|
+#          variable=="totalpop") 
+# 
+# insurance$variable <- gsub("noinsurance", "do not have insurance", insurance$variable)
+# insurance$variable <- gsub("hasprivateinsurance", "have private insurance", insurance$variable)
+# insurance$variable <- gsub("haspublicinsurance", "have public insurance", insurance$variable)
+# 
+# top_insurance<- insurance %>%
+#   slice_max(estimate, n=2) 
+# 
+# top_insurance_percent <- top_insurance %>% 
+#   mutate(top_insurance_percent=paste(round(estimate[2]/estimate[1]*100), "%", sep="")) %>% 
+#   filter(estimate!=max(estimate))
 ```
+
+
+```{r include=FALSE}
 
 ## **Medical Insurance (2019)**
 
 ##### The vast majority of `r params$NAME_place`'s residents, `r scales::comma(top_insurance_percent$estimate)` (`r top_insurance_percent$top_insurance_percent`), `r top_insurance$variable[2]`. **Table 1.2** illustrates the distribution of insurance in the commmunity.
 
-```{r include=FALSE}
-insurance2 <- md_details %>% 
-  filter(variable=="noinsurance"|
-         variable=="hasprivateinsurance" |
-         variable=="haspublicinsurance"|
-         variable=="totalpop") 
 
-insurance2$Percent <- c(paste(round(insurance2$estimate[1]/insurance2$estimate[4]*100), "%", sep=""),
-                        paste(round(insurance2$estimate[2]/insurance2$estimate[4]*100), "%", sep=""),
-                        paste(round(insurance2$estimate[3]/insurance2$estimate[4]*100), "%", sep=""),
-                        paste(round(insurance2$estimate[4]/insurance2$estimate[4]*100), "%", sep=""))
-
-insurance2 <- insurance2 %>% 
-  filter(variable=="noinsurance"|
-         variable=="hasprivateinsurance" |
-         variable=="haspublicinsurance") |> 
-  select(-county)
-
-insurance2$variable <- gsub("noinsurance", "No Insurance", insurance2$variable)
-insurance2$variable <- gsub("hasprivateinsurance", "Private Insurance", insurance2$variable)
-insurance2$variable <- gsub("haspublicinsurance", "Public Insurance", insurance2$variable)
+# insurance2 <- md_details %>% 
+#   filter(variable=="noinsurance"|
+#          variable=="hasprivateinsurance" |
+#          variable=="haspublicinsurance"|
+#          variable=="totalpop") 
+# 
+# insurance2$Percent <- c(paste(round(insurance2$estimate[1]/insurance2$estimate[4]*100), "%", sep=""),
+#                         paste(round(insurance2$estimate[2]/insurance2$estimate[4]*100), "%", sep=""),
+#                         paste(round(insurance2$estimate[3]/insurance2$estimate[4]*100), "%", sep=""),
+#                         paste(round(insurance2$estimate[4]/insurance2$estimate[4]*100), "%", sep=""))
+# 
+# insurance2 <- insurance2 %>% 
+#   filter(variable=="noinsurance"|
+#          variable=="hasprivateinsurance" |
+#          variable=="haspublicinsurance") |> 
+#   select(-state)
+# 
+# insurance2$variable <- gsub("noinsurance", "No Insurance", insurance2$variable)
+# insurance2$variable <- gsub("hasprivateinsurance", "Private Insurance", insurance2$variable)
+# insurance2$variable <- gsub("haspublicinsurance", "Public Insurance", insurance2$variable)
 ```
 
 ```{r echo=FALSE, include=TRUE}
-kable(insurance2, booktabs = T, col.names = c("Insurance", "Estimate", "Percent"), align = "c") %>% 
-  kableExtra::kable_styling(position = "center") 
+# kable(insurance2, booktabs = T, col.names = c("Insurance", "Estimate", "Percent"), align = "c") %>% 
+#   kableExtra::kable_styling(position = "center") 
 
 ```
 
-## **Income Inequality (Gini Index)**
-Gini 
-![Gini index formula](images/gini.png)\
 ```{r}
-state <- states(
-  year = 2019,
-  cb = TRUE,
-  class = "sf"
-  ) |> 
-  filter(str_detect(NAME, "Kentucky"))
-
-county <- counties(
-  year = 2019,
-  cb = TRUE,
-  class = "sf"
-  ) |> 
-  filter(NAME == params$NAME_place &
-           STATEFP == 21) 
-
-incom_ineq_gini <- read_rds("data_clean/ky_acs_cleaned_demog_20240717.rds") |> 
+gini_state_data <- read_rds("data_clean/acs_cleaned_demog_20240818.rds") |>
   filter(variable == "incom_ineq_gini")
 
-# Map Index of Disimilarity
-
-state_of_interest = incom_ineq_gini %>%
-  filter(county == params$NAME_place)
-
-state_line <- state_of_interest %>% 
-  st_sf()
-
-# Getting GINI index data by zcta 
-counties_zctas <- read_rds("ky_crosswalk_counties_zctas.rds")
-
-gini_county_data <- read_rds("data_clean/ky_acs_cleaned_demog_20240717.rds") |> 
-  filter(variable == "incom_ineq_gini") |> 
-  filter(county == params$NAME_place)
-
-gini_zcta_data <- get_acs(geography = "zcta",
-                      state="KY",
+gini_county_data <- get_acs(geography = "county",
                       #output="tidy",
                       year=2019,
                       geometry = TRUE,
                       output = "wide",
                       variables= c(
-                        totalpop="B01001_001",
+                        # totalpop="B01001_001",
                         incom_ineq_gini = "B19083_001"
                       )) |> 
-  select(zcta = GEOID, totalpopE, incom_ineq_giniE, geometry) |> 
-  right_join(counties_zctas, by = join_by(zcta)) |> 
-  filter(!(is.na(incom_ineq_giniE))) |> 
-  filter(county == params$NAME_place)
-  
+  mutate(state = gsub(".*, ", "", NAME)) |> 
+  mutate(NAME = gsub(" County.*", "", NAME)) |> 
+  filter(state == params$NAME_place)
 
+### 
+
+state <- states(
+  year = 2019,
+  cb = TRUE,
+  class = "sf"
+  ) |> 
+  filter(NAME == params$NAME_place)
+
+# getting the box size (zoom) 
+us_main_box <- gini_state_data |> 
+  filter(NAME !="Hawaii") |> 
+  filter(NAME != "Puerto Rico") |> 
+  filter(NAME != "Alaska")
+
+# mid_coord <- st_coordinates(us_main_box)
+
+zoom_us <- st_bbox(us_main_box)
+# zoom_counties <- st_bbox(incom_ineq_gini) 
+zoom_state <- st_bbox(state) 
+# zoom_state <- st_bbox(gini_state_data) 
+
+# cropping the base 
+# all_states_cropped <- st_crop(ky_state, xmin = zoom_counties[[1]]-5, #
+#                          ymin = zoom_counties[[2]]-0.5,
+#                          xmax = zoom_counties[[3]]+1, 
+#                          ymax = zoom_counties[[4]]+0.5)
+gini_state_data_cropped <- st_crop(gini_state_data, xmin = zoom_us[[1]], #
+                         ymin = zoom_us[[2]] ,
+                         xmax = zoom_us[[3]],
+                         ymax = zoom_us[[4]])
 ```
 
+```{r include=FALSE, message=FALSE, warning=FALSE}
 
-```{r }
-
-gini_zcta_data2 <- st_intersection(county, gini_zcta_data)
-
-min <- min(gini_zcta_data2$incom_ineq_giniE) + 0.005
-max <- max(gini_zcta_data2$incom_ineq_giniE) -  0.005
+min <- min(gini_county_data$incom_ineq_giniE) + 0.005
+max <- max(gini_county_data$incom_ineq_giniE) -  0.005
 sep <- round(((max - min)/5), 2)
 
-map_county <- ggplot() +
-  geom_sf(data= gini_zcta_data2, aes(fill = incom_ineq_giniE),
+map_state <- ggplot() +
+  geom_sf(data= gini_county_data, aes(fill = incom_ineq_giniE),
           color = "white") +
-    # geom_sf(data= ,
-    #         color = "black") +
-      
   scale_fill_fermenter(
     name = "",
     #breaks = seq(0.40, 0.46, 0.02),
@@ -973,85 +960,77 @@ map_county <- ggplot() +
     #                          unit = "cm"),
     panel.border = element_rect(colour = "magenta", fill=NA, size=1)
   )
-
-
 ```
 
-```{r include=TRUE, echo=FALSE, fig.align='center'}
-# base 
-all_states <- states(
-  year = 2019,
-  cb = TRUE,
-  class = "sf"
-  ) 
-ky_state <- states(
-  year = 2019,
-  cb = TRUE,
-  class = "sf"
-  ) |> 
-  filter(NAME == "Kentucky")
 
-# getting the box size (zoom) 
-zoom_counties <- st_bbox(incom_ineq_gini) 
-zoom_state <- st_bbox(ky_state) 
-zoom_county <- st_bbox(gini_county_data) 
+## **Income Inequality (Gini Index)**
 
-# cropping the base 
-# all_states_cropped <- st_crop(ky_state, xmin = zoom_counties[[1]]-5, #
-#                          ymin = zoom_counties[[2]]-0.5,
-#                          xmax = zoom_counties[[3]]+1, 
-#                          ymax = zoom_counties[[4]]+0.5)
-all_states_cropped <- st_crop(all_states, xmin = zoom_state[[1]]-4, #
-                         ymin = zoom_state[[2]]-0.5,
-                         xmax = zoom_state[[3]], 
-                         ymax = zoom_state[[4]])
+```{r include=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
 
-map_state <- ggplot() +
-      geom_sf(data=all_states_cropped,
-          color = "white",
-          fill = "white"
-          )+
-  geom_sf(data = incom_ineq_gini, aes(fill = estimate),
+
+map_us <- ggplot() +
+      # geom_sf(data=all_states_cropped,
+      #     color = "white",
+      #     fill = "white"
+      #     )+
+  geom_sf(data = gini_state_data, aes(fill = estimate),
           color = "white") +
-  geom_sf(data=gini_county_data,
-          fill = NA,
-          color = "black"
-          ) +
-  coord_sf(expand = FALSE) +
+  # geom_sf(data=all_states_cropped,
+  #         fill = NA,
+  #         color = "black"
+  #         ) +
+  # fitBounds(us_main_box, -72, 40, -70, 43)
+  # setView(lng = -71.0589, lat = 42.3601, zoom = 12) +
+  coord_sf(xlim = c(-124.76307, -66.94989), ylim = c(24.52310, 49.38436), expand = FALSE) +
   scale_fill_fermenter(
     name = "",
     breaks = seq(round(min, 2), round(max, 2), sep),
     direction = 1,
     palette = "YlGnBu") +
-  labs(title = paste0(params$NAME_place, " County"),
+
+  labs(title = paste0(params$NAME_place, " state"),
        x = NULL,
        y = NULL) +
   theme_map() +
   theme(
     plot.title = element_text(hjust = 0.5,  size = 20),
-    legend.position = "bottom", 
+    legend.position = "bottom",
     legend.justification = "right",
     legend.direction = "horizontal",
-    legend.key.size = unit(0.9, "cm")
-    )+
-  geom_rect(aes(xmin = zoom_county[[1]]-0.04, 
-                xmax = zoom_county[[3]]+0.04, 
-                ymin = zoom_county[[2]]-0.04, 
-                ymax = zoom_county[[4]]+0.04), 
+    legend.key.size = unit(0.9, "cm"),
+    plot.margin = margin(t = 1,  # Top margin
+                             r = 1,  # Right margin
+                             b = 1.5,  # Bottom margin
+                             l = 1,  # Left margin
+                             unit = "cm")
+    ) +
+  geom_rect(aes(xmin = zoom_state[[1]]-0.04,
+                xmax = zoom_state[[3]]+0.04,
+                ymin = zoom_state[[2]]-0.04,
+                ymax = zoom_state[[4]]+0.04),
             color = "magenta", fill = NA,
-            linewidth = 0.3) 
+            linewidth = 0.3)
 
 
 
-insert <- inset_element(map_county, 0, 0.1, 0.5, 0.6,
+
+
+insert <-
+  inset_element(map_state, 0.1, 0.1, 0.4, 0.4,
                            align_to = 'full'
                            )
 
-map_state + insert 
+#map_us + insert
 
-
-  
 ```
+
+
+
+
+```{r include=TRUE, message=FALSE, warning=FALSE}
+map_us + insert
+```
+
 
 
 
